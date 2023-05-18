@@ -2,12 +2,16 @@ import re
 import uuid
 import flask
 from flask import Flask, session, Blueprint, request, jsonify, make_response
+from flask_jwt_extended import create_access_token, JWTManager, get_jwt, set_access_cookies
+from flask_jwt_extended import get_jwt_identity
+from flask_jwt_extended import jwt_required
 import app.database as db
 
 api_bp = Blueprint('api', __name__)
 
 email_regex = r'\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b'
 password_regex = r"^(?=.*[A-Za-z])(?=.*\d)(?=.*[@$!%*#?&])[A-Za-z\d@$!%*#?&]{13,}$"
+jwt = JWTManager()
 
 
 @api_bp.route("/api/admin/login", methods=["POST"])
@@ -73,13 +77,17 @@ def user_register():
 
 @api_bp.route("/api/messages/<msg_id>", methods=["GET", "POST"])
 @api_bp.route("/api/messages", methods=["GET", "POST"])
+@jwt_required(optional=True, locations=["cookies"])
 def message(msg_id=None):
     if "user" in session:
         uid = session["user"]
 
     else:
-        uid = ""
-        # TODO: check user token return error if neither are present
+        # claims = get_jwt()
+        uid = get_jwt_identity()
+
+    if uid is None:
+        return make_response(jsonify({"message": "user not authenticated"}), 403)
 
     if request.method == "GET":
         msg = db.get_message(uid, msg_id)
@@ -89,12 +97,9 @@ def message(msg_id=None):
         try:
             data = request.get_json()
 
-            if "user" in session:
-                uid = session["user"]
-                if db.create_message(uid, data["message"]):
-                    return make_response(jsonify({"message": 'success'}), 201)
-                return make_response(jsonify({"message": "failure"}), 500)
-            return make_response(jsonify({"message": "user not authenticated"}), 403)
+            if db.create_message(uid, data["message"]):
+                return make_response(jsonify({"message": 'success'}), 201)
+            return make_response(jsonify({"message": "failure"}), 500)
         except Exception as e:
             print(e)
             return make_response(jsonify({'message': repr(e)}))
