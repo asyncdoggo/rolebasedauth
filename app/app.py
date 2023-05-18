@@ -34,10 +34,27 @@ def admin_login():
             print(e)
 
 
-@api_bp.route("/api/user/login")
+@api_bp.route("/api/user/login", methods=["POST"])
 def user_login():
-    pass
-    # TODO: IMPLEMENT TOKEN AUTH FOR USER
+    if request.method == "POST":
+        try:
+            auth = request.authorization
+            if not auth or not auth.username or not auth.password:
+                return make_response(jsonify({'message': 'username or password not present'}))
+
+            user = db.check_auth(auth.username, auth.password)
+            if user:
+                access_token = create_access_token(identity=user.id)
+
+                resp = make_response(jsonify({'message': 'success'}), 200)
+                set_access_cookies(resp, access_token, max_age=3000000)
+                return resp
+            elif user == 0:
+                return make_response(jsonify({'message': 'username not found'}))
+            else:
+                return make_response(jsonify({'message': 'incorrect password'}))
+        except Exception as e:
+            print(e)
 
 
 @api_bp.route("/api/admin/register", methods=["POST"])
@@ -72,7 +89,7 @@ def register(role="admin"):
 
 @api_bp.route("/api/user/register", methods=["POST"])
 def user_register():
-    register(role="user")
+    return register(role="user")
 
 
 @api_bp.route("/api/messages/<msg_id>", methods=["GET", "POST"])
