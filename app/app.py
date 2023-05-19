@@ -95,6 +95,27 @@ def user_register():
     return register(role="user")
 
 
+@api_bp.route("/api/logout", methods=["GET"])
+@jwt_required(optional=True, locations=["cookies"])
+def logout():
+    if "user" in session:
+        uid = session["user"]
+        sid = session["id"]
+        if db.remove_session(sid, uid):
+            del session["user"], session["id"]
+            return make_response("", 200)
+    else:
+        # claims = get_jwt()
+        uid = get_jwt_identity()
+        sid = request.cookies.get("access_token_cookie")
+        if db.remove_session(sid, uid):
+            resp = make_response("", 200)
+            unset_access_cookies(resp)
+            return resp
+
+    return make_response(jsonify({"message": "user not authenticated"}), 403)
+
+
 @api_bp.route("/api/messages/<msg_id>", methods=["GET", "POST"])
 @api_bp.route("/api/messages", methods=["GET", "POST"])
 @jwt_required(optional=True, locations=["cookies"])
