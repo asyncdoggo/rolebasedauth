@@ -1,10 +1,11 @@
 import re
 import uuid
-import flask
-from flask import Flask, session, Blueprint, request, jsonify, make_response
-from flask_jwt_extended import create_access_token, JWTManager, get_jwt, set_access_cookies
+
+from flask import session, Blueprint, request, jsonify, make_response
+from flask_jwt_extended import create_access_token, JWTManager, set_access_cookies, get_jwt, unset_access_cookies
 from flask_jwt_extended import get_jwt_identity
 from flask_jwt_extended import jwt_required
+
 import app.database as db
 
 api_bp = Blueprint('api', __name__)
@@ -25,6 +26,8 @@ def admin_login():
             user = db.check_auth(auth.username, auth.password)
             if user:
                 session["user"] = user.id
+                session["id"] = uuid.uuid4().hex
+                db.store_session(session["id"], user.id)
                 return make_response(jsonify({'message': 'success'}), 200)
             elif user == 0:
                 return make_response(jsonify({'message': 'username not found'}))
@@ -45,9 +48,9 @@ def user_login():
             user = db.check_auth(auth.username, auth.password)
             if user:
                 access_token = create_access_token(identity=user.id)
-
                 resp = make_response(jsonify({'message': 'success'}), 200)
-                set_access_cookies(resp, access_token, max_age=3000000)
+                set_access_cookies(resp, access_token, max_age=1800)  # 30 mins
+                db.store_session(access_token, user.id)
                 return resp
             elif user == 0:
                 return make_response(jsonify({'message': 'username not found'}))
@@ -98,12 +101,14 @@ def user_register():
 def message(msg_id=None):
     if "user" in session:
         uid = session["user"]
+        sid = session["id"]
 
     else:
         # claims = get_jwt()
         uid = get_jwt_identity()
+        sid = request.cookies.get("access_token_cookie")
 
-    if uid is None:
+    if not db.check_session(sid, uid):
         return make_response(jsonify({"message": "user not authenticated"}), 403)
 
     if request.method == "GET":
