@@ -24,6 +24,13 @@ class Message(db.Model):
     user_id = db.Column(db.String(35), db.ForeignKey("users.id", ondelete="CASCADE"))
 
 
+class Sessions(db.Model):
+    __tablename__ = "sessions"
+    id = db.Column(db.Integer, primary_key=True)
+    session_id = db.Column(db.String(100), nullable=False)
+    user_id = db.Column(db.String(35), db.ForeignKey("users.id", ondelete="CASCADE"))
+
+
 def insert_user(user_id, username, email, password, role):
     try:
         hashed = ph.hash(password)
@@ -58,7 +65,8 @@ def create_message(usr, d):
 
 
 def get_message(uid, message_id=None):
-    user = Users.query.filter_by(id=uid).one_or_none()
+    user = Users.query.filter_by(id=uid).one()
+
     msg = []
     if message_id and user.role == "admin":
         msg = Message.query.filter_by(id=message_id).one_or_none()
@@ -102,5 +110,37 @@ def get_message(uid, message_id=None):
     return msg
 
 
+def store_session(sid, uid):
+    try:
+        session = Sessions.query.filter_by(session_id=sid,user_id=uid).one_or_none()
+        if session:
+            db.session.delete(session)
+        session = Sessions(session_id=sid, user_id=uid)
+        db.session.add(session)
+        db.session.commit()
+        return True
+    except Exception as e:
+        print(e)
+
+
 def get_user(uid):
     return Users.query.filter_by(id=uid).one_or_none()
+
+
+def check_session(sid, uid):
+    try:
+        session = Sessions.query.filter_by(session_id=sid, user_id=uid).one_or_none()
+        if session:
+            return True
+    except Exception as e:
+        print(e)
+
+
+def remove_session(sid, uid):
+    try:
+        session = Sessions.query.filter_by(session_id=sid, user_id=uid).one_or_none()
+        db.session.delete(session)
+        db.session.commit()
+        return True
+    except Exception as e:
+        print(e)
